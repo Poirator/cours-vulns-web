@@ -1,49 +1,40 @@
-import requests
-import os
+from flask import Flask, request, render_template_string
+import sqlite3
 
-# Configuration
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')  # À définir dans tes variables d'environnement
-REPO_OWNER = 'ton-org-ou-utilisateur'    # Remplace par ton organisation ou utilisateur
-REPO_NAME = 'ton-depot'                   # Remplace par le nom de ton dépôt
+app = Flask(__name__)
 
-def get_codeql_alerts():
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/code-scanning/alerts"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
+# Exemple 1 : Injection SQL (CodeQL détecte les requêtes SQL non sécurisées)
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form['username']
+    password = request.form['password']
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    # Vulnérabilité : requête SQL avec concaténation de chaînes
+    query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+    cursor.execute(query)
+    user = cursor.fetchone()
+    conn.close()
+    if user:
+        return "Login successful!"
     else:
-        print(f"Erreur lors de la récupération des alertes CodeQL: {response.status_code}")
-        return []
+        return "Login failed."
 
-def get_dependabot_alerts():
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/dependabot/alerts"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Erreur lors de la récupération des alertes Dependabot: {response.status_code}")
-        return []
+# Exemple 2 : Cross-Site Scripting (XSS) (CodeQL détecte les templates non sécurisés)
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    # Vulnérabilité : utilisation de render_template_string sans échappement
+    return render_template_string(f"<h1>Résultats pour : {query}</h1>")
 
-def main():
-    print("Récupération des alertes CodeQL...")
-    codeql_alerts = get_codeql_alerts()
-    print(f"Nombre d'alertes CodeQL: {len(codeql_alerts)}")
-    for alert in codeql_alerts:
-        print(f"- {alert['rule']['id']}: {alert['rule']['description']} (fichier: {alert['most_recent_instance']['location']['path']})")
+# Exemple 3 : Command Injection (CodeQL détecte les appels système non sécurisés)
+@app.route('/ping')
+def ping():
+    host = request.args.get('host', '')
+    # Vulnérabilité : utilisation de os.system avec une entrée utilisateur non validée
+    import os
+    os.system(f"ping -c 4 {host}")
+    return f"Ping envoyé à {host}"
 
-    print("\nRécupération des alertes Dependabot...")
-    dependabot_alerts = get_dependabot_alerts()
-    print(f"Nombre d'alertes Dependabot: {len(dependabot_alerts)}")
-    for alert in dependabot_alerts:
-        print(f"- {alert['dependency']['package']['name']}@{alert['dependency']['version']}: {alert['security_vulnerability']['advisory']['summary']}")
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(debug=True)
