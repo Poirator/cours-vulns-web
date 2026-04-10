@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['javascript', 'python', 'java', 'csharp', 'go', 'cpp', 'ruby']
-        # Remplace cette liste par les langages utilisés dans ton projet
+        #language: ['javascript', 'python', 'java', 'csharp', 'go', 'cpp', 'ruby']
+        language: ['python']
 
     steps:
     - name: Checkout repository
